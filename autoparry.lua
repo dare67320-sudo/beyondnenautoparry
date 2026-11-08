@@ -1,4 +1,4 @@
--- Beyond Nen Auto Parry (Matcha) with a JDUI menu
+-- Beyond Nen Auto Parry (Matcha) with Valentine UI
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/dare67320-sudo/beyondnenautoparry/main/autoparry.lua"))()
 -- RightShift opens/closes the menu.
 
@@ -379,63 +379,74 @@ print("[AutoParry] loaded")
 
 end
 
----------------------------------------------------------------- menu
-
+---------------------------------------------------------------- menu (Valentine UI)
 local P = _G.AutoParryCfg
-local ui = loadstring(game:HttpGet("https://raw.githubusercontent.com/jdev-studio/jdui/refs/heads/main/JDUI"))() or _G.JDUI
+pcall(function() if _G.BN_Window then _G.BN_Window:Unload() end end)
 
-local tab = ui:AddTab({ Title = "Auto Parry", Icon = "script", Columns = 2 })
+local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/dare67320-sudo/uilib/main/ui.lua"))() or _G.Valentine
 
-local main = tab:AddIsland({ Title = "Auto Parry", Description = "Blocks when something swings at you", Column = 1 })
-local statusLbl = main:AddLabel({ Title = "Parries: 0", Description = "Waiting..." })
-main:AddToggle({ Title = "Enabled", Default = P.enabled, Callback = function(v) P.enabled = v end })
-main:AddToggle({ Title = "Parry players", Default = P.players, Callback = function(v) P.players = v end })
-main:AddToggle({ Title = "Parry NPCs", Default = P.npcs, Callback = function(v) P.npcs = v end })
-main:AddToggle({ Title = "Only if facing me", Default = P.facing, Callback = function(v) P.facing = v end })
+-- the UI uses Roblox KeyCode numbers, the parry presses Windows key codes
+local KC2VK = {
+    [8] = 0x08, [9] = 0x09, [13] = 0x0D, [32] = 0x20, [127] = 0x2E,
+    [273] = 0x26, [274] = 0x28, [275] = 0x27, [276] = 0x25, [277] = 0x2D, [278] = 0x24,
+    [279] = 0x23, [280] = 0x21, [281] = 0x22, [301] = 0x14, [303] = 0xA1, [304] = 0xA0,
+    [305] = 0xA3, [306] = 0xA2, [307] = 0xA5, [308] = 0xA4,
+    [44] = 0xBC, [45] = 0xBD, [46] = 0xBE, [47] = 0xBF, [59] = 0xBA, [61] = 0xBB,
+    [39] = 0xDE, [91] = 0xDB, [92] = 0xDC, [93] = 0xDD, [96] = 0xC0,
+}
+for i = 97, 122 do KC2VK[i] = i - 32 end
+for i = 48, 57 do KC2VK[i] = i end
+for i = 1, 12 do KC2VK[281 + i] = 0x6F + i end
+local function kcOfVK(vk) for kc, v in pairs(KC2VK) do if v == vk then return kc end end return 102 end
 
-local timing = tab:AddIsland({ Title = "Timing", Column = 2 })
-timing:AddSlider({ Title = "Range", Min = 4, Max = 30, Step = 1, Default = P.range, Suffix = " studs",
+local win = UI:Window({})
+_G.BN_Window = win
+local tab = win:Tab("Auto Parry", "Combat")
+
+local main = tab:Section("Auto Parry", "Left")
+local statusLbl = main:Label("Parries: 0")
+local lastLbl = main:Label("Last: waiting...")
+main:Toggle({ Name = "Enabled", Default = P.enabled, Callback = function(v) P.enabled = v end })
+main:Toggle({ Name = "Parry players", Default = P.players, Callback = function(v) P.players = v end })
+main:Toggle({ Name = "Parry NPCs", Default = P.npcs, Callback = function(v) P.npcs = v end })
+main:Toggle({ Name = "Only if facing me", Default = P.facing, Callback = function(v) P.facing = v end })
+
+local timing = tab:Section("Timing", "Right")
+timing:Slider({ Name = "Range", Min = 4, Max = 30, Default = P.range, Decimals = 0, Suffix = " studs",
     Callback = function(v) P.range = v end })
-timing:AddSlider({ Title = "Delay", Description = "Raise if you parry too early",
-    Min = 0, Max = 400, Step = 10, Default = P.delay, Suffix = " ms", Callback = function(v) P.delay = v end })
-timing:AddSlider({ Title = "Hold", Min = 30, Max = 300, Step = 10, Default = P.hold, Suffix = " ms",
+timing:Slider({ Name = "Delay", Min = 0, Max = 400, Default = P.delay, Decimals = 0, Suffix = " ms",
+    Callback = function(v) P.delay = v end })
+timing:Slider({ Name = "Hold", Min = 30, Max = 300, Default = P.hold, Decimals = 0, Suffix = " ms",
     Callback = function(v) P.hold = v end })
-timing:AddKeybind({
-    Title = "Parry key", Description = "Your block key in game",
-    Default = P.vk,
-    Callback = function(vk) if vk then P.vk = vk; P.keyName = tostring(vk) end end,
-})
+timing:Keybind({ Name = "Parry key", Default = kcOfVK(P.vk),
+    Changed = function(kc)
+        local vk = kc and KC2VK[kc]
+        if vk then P.vk = vk; P.keyName = tostring(kc) end
+    end })
 
-main:AddButton({
-    Title = "Unload", Description = "Stops auto parry and closes this menu",
-    ButtonText = "Unload",
-    Callback = function()
-        pcall(_G.AutoParryUnload)
-        pcall(function() ui:Destroy() end)
-    end,
-})
+-- Unload lives in the built-in Interface tab
+-- add to the existing "Interface" section (under Reset scale)
+local unloadSec
+pcall(function()
+    for _, s in ipairs(win.settingsTab._default.cols.Left) do
+        if s.name == "Interface" then unloadSec = s break end
+    end
+end)
+unloadSec = unloadSec or (win.settingsTab or tab):Section("Interface", "Left")
+unloadSec:Button({ Name = "Unload", Callback = function()
+    pcall(_G.AutoParryUnload)
+    pcall(function() win:Unload() end)
+end })
 
 task.spawn(function()
-    while ui.Alive ~= false and _G.AutoParryStats do
+    while win.running ~= false and _G.AutoParryStats do
         pcall(function()
             local ps, pc = _G.AutoParryStats()
-            statusLbl:SetText("Parries: " .. tostring(pc))
-            statusLbl:SetDescription("Last: " .. tostring(ps))
+            statusLbl:Set("Parries: " .. tostring(pc))
+            lastLbl:Set("Last: " .. tostring(ps))
         end)
         task.wait(0.5)
     end
 end)
 
--- drop JDUI's built-in "Home" welcome tab
-pcall(function()
-    for i = #ui.Tabs, 1, -1 do
-        if ui.Tabs[i] == ui.Home then table.remove(ui.Tabs, i) end
-    end
-    -- Auto Parry first, Settings after
-    for i = #ui.Tabs, 1, -1 do
-        if ui.Tabs[i] == tab then table.remove(ui.Tabs, i) end
-    end
-    table.insert(ui.Tabs, 1, tab)
-end)
-pcall(function() tab:Select() end)
 print("[BeyondNen] auto parry loaded (RightShift for the menu)")
